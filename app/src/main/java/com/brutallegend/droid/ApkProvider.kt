@@ -18,7 +18,7 @@ class ApkProvider : ContentProvider() {
 
     override fun openAssetFile(uri: Uri, mode: String): AssetFileDescriptor? {
         val name = uri.lastPathSegment ?: return null
-        val dir = context?.externalFilesDir ?: return null
+        val dir = context?.getExternalFilesDir(null) ?: return null
         val file = File(dir, name)
         if (!file.exists()) return null
         return AssetFileDescriptor(

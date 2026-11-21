@@ -216,7 +216,7 @@ class MainActivity : Activity() {
             statusText.text = "XƏTA: termux-x11.apk runtime içində tapılmadı."
             return false
         }
-        val dest = File(externalFilesDir, "termux-x11.apk")
+        val dest = File(getExternalFilesDir(null) ?: cacheDir, "termux-x11.apk")
         try {
             source.copyTo(dest, overwrite = true)
         } catch (e: Exception) {
