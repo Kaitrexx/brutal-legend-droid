@@ -1,51 +1,45 @@
 # brutal-legend-droid
 
-Android üçün **yalnız Brütal Legend (PC)** oyununu işlətmək üçün optimallaşdırılmış, açıq mənbə çalıştırma qabığı.
+**Brütal Legend (PC) üçün tək APK-lı, Mali GPU-lar üçün optimallaşdırılmış Android çalıştırma mühiti.**
 
-**Hədəf cihaz:** Samsung Galaxy A06 — Helio G85, Mali-G52 MC2, 4 GB RAM, Android 14, root yox.
-**Hədəf:** maksimum əldə edilə bilən FPS (sabit 30 FPS şərt deyil).
+Hədəf cihaz: Samsung Galaxy A06 — Helio G85, Mali-G52 MC2, 4 GB RAM, Android 14.
 
-## Status
+## Yanaşma (vahid build)
 
-| Mərhələ | Vəziyyət |
+Layihə bir neçə açıq mənbə emulatorun ən yaxşı hissələrini birləşdirir:
+
+| Mənbə | Götürülən hissə |
 |---|---|
-| Phase 1 — repo, GitHub Actions debug APK, profillər, runtime manifest | ✅ hazırdır |
-| Phase 2 — runtime bundle (proot, FEX/Box86/Box64, Mesa, Wine/Vortek) | ⏳ növbəti |
-| Phase 3 — qrafika və performans tuninqi | ⏳ |
-| Phase 4–7 — CPU tuning, input UX, paketləmə | ⏳ |
+| **Winlator** (LGPL-2.1) | İçinə gömülü X server, Vortek/VirGL/Gladio renderer, Wine, Box64, proot, rootfs — **tək APK** |
+| **Mobox** | Yığcam glibc + Wine 9.3 WoW64 təcrübəsi, Mali üçün DXVK 1.10.3 async tövsiyəsi |
+| **GameNative** | FEX/Box64 və yeni drayver versiyaları haqqında tədqiqat |
+| **Bizim qabıq** | Tək oyunlu profil, 640×360 + FPS HUD default, Mali/Vortek tuninqi, avtomatlaşdırılmış build |
 
-> İndiki APK yalnız **iskelet**-dir: UI, runtime endirici və profil seçimi işləyir, lakin oyunu işlətmək üçün runtime bundle hələ yayımlanmayıb.
+Nəticə: əlavə tətbiq (**Termux:X11**) tələb olunmur — hər şey bir APK-dadır.
 
-## Yanaşma
+## Tənzimləmələr (A06 üçün)
 
-İki oyun build-i üçün iki profil saxlanılır:
-
-| Profil | Oyun | CPU | Qrafika |
-|---|---|---|---|
-| `linux-fex` | Ubuntu 32-bit | FEX | Mesa Zink (OpenGL→Vulkan) |
-| `linux-box86` | Ubuntu 32-bit | Box86 | Mesa Zink |
-| `windows-box64` | Windows 64-bit | Wine64 + Box64 | Vortek + DXVK async |
-
-Root olmadığı üçün hər şey **proot** konteynerində işləyir. Texniki əsaslandırma: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+- Ekran: **640×360** (`Container.DEFAULT_SCREEN_SIZE`)
+- Qrafika: **Vortek** (Mali üçün Winlator-ın avtomatik seçimi)
+- Box64 preset: **PERFORMANCE** (default)
+- FPS HUD: **SIMPLE** (default)
+- DXVK 1.10.3 async mövcuddur (`assets/dxwrapper/`)
 
 ## Build
 
-GitHub Actions avtomatik olaraq hər push-da `assembleDebug` işlədir və APK-nı artifact olaraq yükləyir:
-`.github/workflows/build.yml`
+GitHub Actions hər push-da `./gradlew assembleDebug` işlədir və APK-nı artifact olaraq yükləyir.
 
-Lokal build üçün JDK 17 + Android SDK + Gradle 8.9 tələb olunur:
-```bash
-gradle assembleDebug
-```
+## Status
 
-## Ölçüm
-
-Phase 0 protokolu və nəticə cədvəli: [`benchmarks/README.md`](benchmarks/README.md).
+- [x] Vahid tək-APK bazası (Winlator) — CI `success`, artifact ~157 MB
+- [x] A06 üçün default tuninq (640×360, Vortek, FPS HUD)
+- [ ] Brutal Legend üçün avtomatik konteyner + shortcut
+- [ ] Səs və performans tuninqi (real FPS ölçümündən sonra)
 
 ## Qanuni istifadə
 
-Bu layihə **oyun fayllarını ehtiva etmir** və DRM bypass etmir. İstifadəçi öz qanuni nüsxəsini (GOG, itch.io və ya digər) təmin edir və emulator yalnız çalışdırma mühiti rolunu oynayır. Brütal Legend Double Fine Productions-ın əsəridir.
+Oyun faylları repoda yoxdur. İstifadəçi öz qanuni nüsxəsini təmin edir. Winlator LGPL-2.1 ilə lisenziyalanıb — bax `LICENSE` və upstream layihələrə kredit.
 
-## Lisenziya
+## Arxiv (əvvəlki mərhələ)
 
-GPL-3.0 — bax [`LICENSE`](LICENSE).
+Müstəqil runtime bundle (`scripts/build-runtime.sh`, GitHub Release `runtime-v0.1`) artıq istifadə olunmur — vahid APK bütün komponentləri özündə daşıyır.
