@@ -22,23 +22,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Android platform 35
-        run: |
-          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -1)"
-          if [ -z "$SDKMANAGER" ]; then
-            echo "sdkmanager tapilmadi: $ANDROID_HOME" >&2
-            exit 1
-          fi
-          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
-          "$SDKMANAGER" --install "platforms;android-35" "build-tools;35.0.0"
-
-      - name: Setup Gradle 8.9
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
 
       - name: Assemble debug APK
-        run: gradle --no-daemon assembleDebug
+        run: ./gradlew --no-daemon assembleDebug
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
