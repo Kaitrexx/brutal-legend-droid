@@ -181,6 +181,7 @@ class MainActivity : Activity() {
             statusText.text = "Əvvəlcə runtime yükləyin."
             return
         }
+        if (!ensureX11Installed()) return
         val gameDir = gamePathEdit.text.toString().trim()
         if (gameDir.isBlank()) {
             statusText.text = "Oyun qovluğunu göstərin."
@@ -197,6 +198,44 @@ class MainActivity : Activity() {
         }
         startForegroundService(intent)
         statusText.text = "Başladılır: ${profile.label}"
+    }
+
+    private fun isX11Installed(): Boolean = try {
+        @Suppress("DEPRECATION")
+        packageManager.getPackageInfo("com.termux.x11", 0)
+        true
+    } catch (e: Exception) {
+        false
+    }
+
+    /** Termux:X11 quraşdırılmayıbsa, bundle-dakı APK-nı quraşdırmağa təklif edir. */
+    private fun ensureX11Installed(): Boolean {
+        if (isX11Installed()) return true
+        val source = File(runtime.runtimePath(), "assets/termux-x11.apk")
+        if (!source.exists()) {
+            statusText.text = "XƏTA: termux-x11.apk runtime içində tapılmadı."
+            return false
+        }
+        val dest = File(externalFilesDir, "termux-x11.apk")
+        try {
+            source.copyTo(dest, overwrite = true)
+        } catch (e: Exception) {
+            statusText.text = "XƏTA: APK kopyalanamadı: ${e.message}"
+            return false
+        }
+        val uri = Uri.parse("content://${packageName}.apkprovider/termux-x11.apk")
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        return try {
+            startActivity(intent)
+            statusText.text = "Termux:X11 quraşdırılır — bitdikdən sonra yenidən 'Başlat' basın."
+            false
+        } catch (e: Exception) {
+            statusText.text = "XƏTA: X11 quraşdırma açılmadı: ${e.message}"
+            false
+        }
     }
 
     private fun loadProfiles(): List<ProfileItem> {

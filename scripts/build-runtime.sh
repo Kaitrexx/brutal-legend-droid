@@ -82,34 +82,58 @@ chmod +x "$STAGE/bin/proot"
 fetch "$MOBOX_APK" "termux-x11.apk"
 cp "$CACHE/termux-x11.apk" "$STAGE/assets/termux-x11.apk"
 
+# Termux:X11 loader — app_process com.termux.x11.Loader üçün
+X11_DEB="https://packages.termux.dev/apt/termux-x11/pool/main/t/termux-x11-nightly/termux-x11-nightly_1.03.01-6_all.deb"
+fetch "$X11_DEB" "termux-x11-nightly.deb"
+mkdir -p "$CACHE/x11deb"
+(cd "$CACHE/x11deb" && ar x "$CACHE/termux-x11-nightly.deb" && tar -xf data.tar.* --no-same-permissions)
+cp "$CACHE/x11deb/data/data/com.termux/files/usr/libexec/termux-x11/loader.apk" "$STAGE/assets/loader.apk"
+
+cat > "$STAGE/bin/termux-x11" <<'SCRIPT'
+#!/system/bin/sh
+RUNTIME_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+export CLASSPATH="$RUNTIME_DIR/assets/loader.apk"
+export TMPDIR="${TMPDIR:-$RUNTIME_DIR/tmp}"
+mkdir -p "$TMPDIR/.X11-unix"
+unset LD_LIBRARY_PATH LD_PRELOAD
+exec /system/bin/app_process -Xnoimage-dex2oat / --nice-name="termux-x11" com.termux.x11.Loader "$@"
+SCRIPT
+chmod +x "$STAGE/bin/termux-x11"
+
 cat > "$STAGE/bin/run-windows.sh" <<'SCRIPT'
 #!/system/bin/sh
-# Brutal Legend (Windows 64-bit) — Mobox/Wine/Box64 üzərindən.
+# Brutal Legend (Windows 64-bit) — Termux:X11 + Wine + Box64.
 RUNTIME_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 GLIBC="$RUNTIME_DIR/glibc"
 GAME_DIR="$1"
 LOG_FILE="${2:-$RUNTIME_DIR/emulator.log}"
 FPS_FILE="${3:-$RUNTIME_DIR/fps.log}"
+TMPDIR="$RUNTIME_DIR/tmp"
+export TMPDIR
+mkdir -p "$TMPDIR/.X11-unix"
 
-export WINE_PATH="$GLIBC/wine-9.3-vanilla-wow64"
-export WINEPREFIX="$GLIBC/wineprefix"
-export BOX64_DYNAREC=1
-export BOX64_DYNAREC_BIGBLOCK=3
-export BOX64_DYNAREC_STRONGMEM=1
-export BOX64_DYNAREC_FASTNAN=1
-export DXVK_ASYNC=1
-export DXVK_HUD=fps
-export DISPLAY=:0
-export PATH="$GLIBC/bin:$WINE_PATH/bin:$PATH"
-
-mkdir -p "$WINEPREFIX"
+echo "X server başladılır..." >>"$LOG_FILE"
+"$RUNTIME_DIR/bin/termux-x11" :0 >>"$LOG_FILE" 2>&1 &
+XPID=$!
+sleep 2
+am start --user 0 -n com.termux.x11/.MainActivity >>"$LOG_FILE" 2>&1 || true
 
 "$RUNTIME_DIR/bin/proot" -R "$GLIBC" -0 -w /root \
   --bind "$GAME_DIR":/game \
+  --bind "$TMPDIR/.X11-unix":/tmp/.X11-unix \
   /bin/bash -c '
+    export DISPLAY=:0
+    export WINEPREFIX=/root/.wine
+    export BOX64_DYNAREC=1
+    export BOX64_DYNAREC_BIGBLOCK=3
+    export BOX64_DYNAREC_STRONGMEM=1
+    export BOX64_DYNAREC_FASTNAN=1
+    export DXVK_ASYNC=1
+    export DXVK_HUD=fps
+    mkdir -p "$WINEPREFIX"
     if [ ! -f "$WINEPREFIX/system.reg" ]; then
       echo "Wine prefix yaradılır (ilk açılış)..." >&2
-      "$WINE_PATH/bin/wineboot" -u >/dev/null 2>&1 || true
+      /bin/box64 /wine-9.3-vanilla-wow64/bin/wineboot -u >/dev/null 2>&1 || true
     fi
     cd /game || exit 1
     EXE=$(find . -maxdepth 3 -iname "BrutalLegend.exe" | head -1)
@@ -117,8 +141,11 @@ mkdir -p "$WINEPREFIX"
       echo "BrutalLegend.exe tapılmadı: $GAME_DIR" >&2
       exit 2
     fi
-    exec "$WINE_PATH/bin/wine" "$EXE"
+    exec /bin/box64 /wine-9.3-vanilla-wow64/bin/wine "$EXE"
   ' >>"$LOG_FILE" 2>&1
+RESULT=$?
+kill "$XPID" 2>/dev/null || true
+exit $RESULT
 SCRIPT
 chmod +x "$STAGE/bin/run-windows.sh"
 

@@ -4,7 +4,7 @@
   "runtime_bundle": {
     "version": "runtime-v0.1",
     "url": "https://github.com/Kaitrexx/brutal-legend-droid/releases/download/runtime-v0.1/runtime-arm64.zip",
-    "sha256": "b1d898e260277b32a3c38f301fda0e6147cb2a9ab8df726910fbd7cc2c32469c",
+    "sha256": "614abf9fc355631233a77d71a688d6c4457923fa712224d9705a55bc1e0a0042",
     "expected_components": [
       "bin/proot",
       "bin/fex",
