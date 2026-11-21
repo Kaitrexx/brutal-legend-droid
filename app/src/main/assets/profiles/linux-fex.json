@@ -1,0 +1,15 @@
+{
+  "id": "linux-fex",
+  "label": "Linux 32-bit + FEX + Zink",
+  "game_build": "ubuntu-i386",
+  "command": "{RUNTIME_DIR}/bin/run-linux.sh \"{GAME_DIR}\" \"{LOG_FILE}\" \"{FPS_LOG}\" fex",
+  "env": {
+    "GALLIUM_DRIVER": "zink",
+    "MESA_LOADER_DRIVER_OVERRIDE": "zink",
+    "MESA_GL_VERSION_OVERRIDE": "4.5",
+    "MESA_GLSL_VERSION_OVERRIDE": "410",
+    "FEX_LOADER_32BIT": "1",
+    "LIBGL_ALWAYS_SOFTWARE": "0"
+  },
+  "notes": "Wine ve DirectX qati yoxdur. Oyunun Ubuntu build-i 32-bit oldugu ucun FEX istifade edilir."
+}

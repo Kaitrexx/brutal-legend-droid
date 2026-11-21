@@ -1,0 +1,18 @@
+{
+  "id": "linux-box86",
+  "label": "Linux 32-bit + Box86 + Zink",
+  "game_build": "ubuntu-i386",
+  "command": "{RUNTIME_DIR}/bin/run-linux.sh \"{GAME_DIR}\" \"{LOG_FILE}\" \"{FPS_LOG}\" box86",
+  "env": {
+    "GALLIUM_DRIVER": "zink",
+    "MESA_LOADER_DRIVER_OVERRIDE": "zink",
+    "MESA_GL_VERSION_OVERRIDE": "4.5",
+    "MESA_GLSL_VERSION_OVERRIDE": "410",
+    "BOX86_DYNAREC": "1",
+    "BOX86_DYNAREC_BIGBLOCK": "3",
+    "BOX86_DYNAREC_STRONGMEM": "1",
+    "BOX86_DYNAREC_FASTNAN": "1",
+    "LIBGL_ALWAYS_SOFTWARE": "0"
+  },
+  "notes": "FEX ile muqayise ucun eyni oyun, eyni ayarlar, Box86 dynarec ile."
+}
