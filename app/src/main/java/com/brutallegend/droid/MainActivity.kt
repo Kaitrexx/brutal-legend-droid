@@ -97,7 +97,7 @@ class MainActivity : Activity() {
         root.addView(sectionLabel("Oyun qovluğu (GOG / itch / digər nüsxə)"))
         gamePathEdit = EditText(this).apply {
             hint = "/sdcard/Download/BrutalLegend"
-            singleLine = true
+            isSingleLine = true
         }
         root.addView(gamePathEdit)
 

@@ -15,7 +15,7 @@ import java.io.File
 
 /**
  * Oyunu proot konteynerində başladan və log/FPS fayllarını idarə edən foreground service.
- * Profillər assets/profiles/*.json fayllarından oxunur; komanda şablonundakı
+ * Profillər assets/profiles qovluğundakı JSON fayllarından oxunur; komanda şablonundakı
  * {RUNTIME_DIR}, {GAME_DIR}, {LOG_FILE}, {FPS_LOG} yerlərinə dəyərlər qoyulur.
  */
 class EmulatorService : Service() {
