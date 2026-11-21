@@ -3,8 +3,8 @@
   "note": "Runtime bundle = proot + minimal rootfs + CPU emulator + Mesa + Xvfb + PulseAudio. Oyun fayllari BURA DAHIL EDILMIR.",
   "runtime_bundle": {
     "version": "runtime-v0.1",
-    "url": "https://github.com/OWNER/brutal-legend-droid/releases/download/runtime-v0.1/runtime-arm64.zip",
-    "sha256": "REPLACE_WITH_SHA256_OF_RELEASE_ZIP",
+    "url": "https://github.com/Kaitrexx/brutal-legend-droid/releases/download/runtime-v0.1/runtime-arm64.zip",
+    "sha256": "f928466343a9319a5e83713c7698fd610b0de69f43183376eac6e57ec20886ae",
     "expected_components": [
       "bin/proot",
       "bin/fex",
