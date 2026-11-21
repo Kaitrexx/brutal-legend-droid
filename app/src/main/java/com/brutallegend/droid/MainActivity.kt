@@ -10,11 +10,13 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
@@ -26,6 +28,8 @@ data class ProfileItem(val id: String, val label: String)
 class MainActivity : Activity() {
 
     private lateinit var statusText: TextView
+    private lateinit var progressBar: ProgressBar
+    private lateinit var progressText: TextView
     private lateinit var fpsText: TextView
     private lateinit var logText: TextView
     private lateinit var profileSpinner: Spinner
@@ -48,6 +52,7 @@ class MainActivity : Activity() {
             profiles.map { it.label }
         ).apply { setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
 
+        runtime.cleanupPartial()
         gamePathEdit.setText("/sdcard/Download/BrutalLegend")
         statusText.text = if (runtime.isInstalled()) {
             "Runtime hazırdır. Profil seçib oyun qovluğunu göstərin."
@@ -82,6 +87,18 @@ class MainActivity : Activity() {
         }
         root.addView(statusText)
 
+        progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            visibility = View.GONE
+            max = 100
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+        root.addView(progressBar)
+        progressText = TextView(this).apply { textSize = 12f; setPadding(0, 4, 0, 8) }
+        root.addView(progressText)
+
         fpsText = TextView(this).apply {
             text = "FPS: —"
             textSize = 22f
@@ -115,9 +132,31 @@ class MainActivity : Activity() {
 
         runtimeBtn.setOnClickListener {
             statusText.text = "Runtime yoxlanılır…"
-            runtime.ensureRuntime { ok, msg ->
-                statusText.text = if (ok) msg else "XƏTA: $msg"
-            }
+            progressBar.visibility = View.VISIBLE
+            progressBar.isIndeterminate = true
+            progressText.text = "Hazırlanır…"
+            runtime.ensureRuntime(
+                { ok, msg ->
+                    handler.post {
+                        statusText.text = if (ok) msg else "XƏTA: $msg"
+                        progressBar.visibility = View.GONE
+                        progressText.text = ""
+                    }
+                },
+                { stage, done, total ->
+                    handler.post {
+                        if (total > 0) {
+                            progressBar.isIndeterminate = false
+                            val pct = ((done * 100) / total).toInt().coerceIn(0, 100)
+                            progressBar.progress = pct
+                            progressText.text = "$stage: ${done / 1048576} / ${total / 1048576} MB ($pct%)"
+                        } else {
+                            progressBar.isIndeterminate = true
+                            progressText.text = stage
+                        }
+                    }
+                }
+            )
         }
 
         startBtn.setOnClickListener { startEmulator() }

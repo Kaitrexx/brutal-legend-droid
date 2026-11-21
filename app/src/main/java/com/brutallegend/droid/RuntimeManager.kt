@@ -3,6 +3,7 @@ package com.brutallegend.droid
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.StatFs
 import org.json.JSONObject
 import java.io.File
 import java.io.FileInputStream
@@ -14,78 +15,116 @@ import java.security.MessageDigest
 import java.util.zip.ZipInputStream
 
 /**
- * Runtime bundle-in (proot, FEX/Box86/Box64, Mesa, Xvfb, PulseAudio, minimal rootfs)
- * endirilməsi, SHA256 yoxlanılması və açılmasından məsuldur.
+ * Runtime bundle-in (proot, Wine, Box64, Mesa, X11) endirilməsi, SHA256 yoxlanılması
+ * və açılması. Endirmə zamanı proqres verir, çatışmayan yaddaşı əvvəlcədən yoxlayır
+ * və uğursuzluqda yarımçıq faylları silir.
  *
- * Bundle bir ZIP-dir və GitHub Releases üzərindən paylanır. Oyun faylları heç vaxt
- * bu yolla endirilmir — istifadəçi öz qanuni nüsxəsini göstərir.
+ * Oyun faylları BURA DAHIL EDILMIR.
  */
 class RuntimeManager(private val ctx: Context) {
 
     private val ui = Handler(Looper.getMainLooper())
     private val runtimeDir = File(ctx.filesDir, "runtime")
     private val marker = File(runtimeDir, ".installed")
+    private val zipFile = File(ctx.cacheDir, "runtime-bundle.zip")
 
     fun isInstalled(): Boolean = marker.exists()
 
     fun runtimePath(): String = runtimeDir.absolutePath
 
-    fun ensureRuntime(callback: (Boolean, String) -> Unit) {
+    fun availableBytes(): Long = StatFs(ctx.filesDir.path).availableBytes
+
+    /** Uğursuz quraşdırmadan qalan yarımçıq faylları silir. */
+    fun cleanupPartial() {
+        if (isInstalled()) return
+        if (runtimeDir.exists()) runtimeDir.deleteRecursively()
+        if (zipFile.exists()) zipFile.delete()
+    }
+
+    fun ensureRuntime(
+        onDone: (Boolean, String) -> Unit,
+        onProgress: (stage: String, done: Long, total: Long) -> Unit = { _, _, _ -> }
+    ) {
         if (isInstalled()) {
-            callback(true, "Runtime hazırdır: ${marker.readText().take(16)}…")
+            onDone(true, "Runtime hazırdır: ${marker.readText().take(16)}…")
             return
         }
         Thread({
+            var success = false
             try {
+                cleanupPartial()
+
                 val manifestText = ctx.assets.open("runtime-manifest.json")
                     .bufferedReader().use { it.readText() }
                 val bundle = JSONObject(manifestText).getJSONObject("runtime_bundle")
                 val url = bundle.getString("url")
                 val expected = bundle.getString("sha256")
-
                 if (expected.isBlank() || expected.startsWith("REPLACE", ignoreCase = true)) {
-                    throw IllegalStateException(
-                        "runtime bundle SHA256 hələ manifest-də doldurulmayıb. " +
-                            "Əvvəlcə runtime bundle yayımlayın."
-                    )
+                    throw IllegalStateException("runtime bundle SHA256 manifest-də doldurulmayıb")
                 }
 
-                val zipFile = File(ctx.cacheDir, "runtime-bundle.zip")
-                download(url, zipFile)
-                val actual = sha256(zipFile)
-                if (!actual.equals(expected, ignoreCase = true)) {
+                val conn = URL(url).openConnection() as HttpURLConnection
+                conn.connectTimeout = 15_000
+                conn.readTimeout = 60_000
+                conn.instanceFollowRedirects = true
+                try {
+                    if (conn.responseCode !in 200..299) {
+                        throw IllegalStateException("HTTP ${conn.responseCode}: $url")
+                    }
+                    val total = conn.contentLength.toLong().coerceAtLeast(0)
+                    val need = if (total > 0) total * 3 else 1_500_000_000L
+                    val free = availableBytes()
+                    if (free < need) {
+                        throw IllegalStateException(
+                            "Boş yaddaş çatışmır: ${free / 1048576} MB mövcuddur, " +
+                                "təxminən ${need / 1048576} MB lazımdır. " +
+                                "Digər tətbiqlərin cache-ini təmizləyin."
+                        )
+                    }
+
+                    var downloaded = 0L
+                    var lastReport = 0L
+                    conn.inputStream.use { input ->
+                        FileOutputStream(zipFile).use { output ->
+                            val buf = ByteArray(64 * 1024)
+                            while (true) {
+                                val n = input.read(buf)
+                                if (n < 0) break
+                                output.write(buf, 0, n)
+                                downloaded += n
+                                if (downloaded - lastReport >= 256 * 1024 || downloaded == total) {
+                                    lastReport = downloaded
+                                    ui.post { onProgress("Endirilir", downloaded, total) }
+                                }
+                            }
+                        }
+                    }
+                    conn.disconnect()
+
+                    ui.post { onProgress("SHA256 yoxlanılır", 0, -1) }
+                    val actual = sha256(zipFile)
+                    if (!actual.equals(expected, ignoreCase = true)) {
+                        throw IllegalStateException(
+                            "SHA256 uyuşmur.\nGözlənən: $expected\nAlınan:   $actual"
+                        )
+                    }
+
+                    ui.post { onProgress("Açılır", 0, -1) }
+                    unzip(zipFile, runtimeDir)
+                    marker.writeText(actual)
                     zipFile.delete()
-                    throw IllegalStateException(
-                        "SHA256 uyuşmur.\nGözlənən: $expected\nAlınan:   $actual"
-                    )
+                    success = true
+                    ui.post { onDone(true, "Runtime quraşdırıldı: ${actual.take(16)}…") }
+                } finally {
+                    conn.disconnect()
                 }
-
-                unzip(zipFile, runtimeDir)
-                zipFile.delete()
-                marker.writeText(actual)
-                ui.post { callback(true, "Runtime quraşdırıldı: ${actual.take(16)}…") }
             } catch (e: Exception) {
                 val msg = e.message ?: e.toString()
-                ui.post { callback(false, msg) }
+                ui.post { onDone(false, msg) }
+            } finally {
+                if (!success) cleanupPartial()
             }
         }, "runtime-download").start()
-    }
-
-    private fun download(urlStr: String, out: File) {
-        val conn = URL(urlStr).openConnection() as HttpURLConnection
-        conn.connectTimeout = 15_000
-        conn.readTimeout = 30_000
-        conn.instanceFollowRedirects = true
-        try {
-            if (conn.responseCode !in 200..299) {
-                throw IllegalStateException("HTTP ${conn.responseCode}: $urlStr")
-            }
-            conn.inputStream.use { input ->
-                FileOutputStream(out).use { output -> input.copyTo(output, 64 * 1024) }
-            }
-        } finally {
-            conn.disconnect()
-        }
     }
 
     private fun sha256(file: File): String {

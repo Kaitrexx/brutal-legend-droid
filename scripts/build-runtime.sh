@@ -31,7 +31,7 @@ command -v tar >/dev/null || { echo "tar lazimdir" >&2; exit 1; }
 command -v zip >/dev/null || { echo "zip lazimdir" >&2; exit 1; }
 command -v sha256sum >/dev/null || { echo "sha256sum lazimdir" >&2; exit 1; }
 
-mkdir -p "$CACHE" "$STAGE/glibc" "$STAGE/bin" "$STAGE/assets"
+mkdir -p "$CACHE" "$STAGE/bin" "$STAGE/assets"
 
 fetch() {
   local url="$1" file="$2"
@@ -47,8 +47,25 @@ for p in "${PACKAGES[@]}"; do
   enc=$(python3 -c 'import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=""))' "$p")
   fetch "$GITLAB/$enc/raw?ref=main" "$p"
   echo "extract: $p"
-  tar --no-same-owner --no-same-permissions -xmf "$CACHE/$p" -C "$STAGE/glibc"
+  tar --no-same-owner --no-same-permissions -xmf "$CACHE/$p" -C "$STAGE"
 done
+
+# --- kiçiltmə: yalnız tək oyun üçün lazım olan hissələr qalır ---
+GLIBC="$STAGE/glibc"
+WINE="$GLIBC/wine-9.3-vanilla-wow64"
+
+# 32-bit Windows DLL-ləri — Windows 64-bit profili üçün lazım deyil (223 MB)
+rm -rf "$WINE/lib/wine/i386-windows"
+# dev/docs/sanitizer/statik kitabxanalar
+rm -rf "$GLIBC/include" "$GLIBC/share/doc" "$GLIBC/share/man" \
+       "$GLIBC/share/locale" "$GLIBC/share/gtk-doc" "$GLIBC/opt/box"
+find "$GLIBC/lib" -maxdepth 1 -type f \( \
+  -name '*.a' -o -name 'libasan*' -o -name 'libtsan*' -o -name 'liblsan*' \
+  -o -name 'libubsan*' -o -name 'libgfortran*' -o -name 'libvulkan_freedreno*' \
+  \) -delete 2>/dev/null || true
+# DXVK/Mesa variantları — yalnız biri
+find "$GLIBC/opt/libs/d3d" -type f ! -name 'dxvk-async-1.10.3.7z' -delete
+find "$GLIBC/opt/libs/mesa" -type f ! -name 'virgl-mesa-22.7z' -delete
 
 for d in "${DEBS[@]}"; do
   f=$(basename "$d")
@@ -90,8 +107,12 @@ mkdir -p "$WINEPREFIX"
 "$RUNTIME_DIR/bin/proot" -R "$GLIBC" -0 -w /root \
   --bind "$GAME_DIR":/game \
   /bin/bash -c '
+    if [ ! -f "$WINEPREFIX/system.reg" ]; then
+      echo "Wine prefix yaradılır (ilk açılış)..." >&2
+      "$WINE_PATH/bin/wineboot" -u >/dev/null 2>&1 || true
+    fi
     cd /game || exit 1
-    EXE=$(find . -maxdepth 2 -iname "BrutalLegend.exe" | head -1)
+    EXE=$(find . -maxdepth 3 -iname "BrutalLegend.exe" | head -1)
     if [ -z "$EXE" ]; then
       echo "BrutalLegend.exe tapılmadı: $GAME_DIR" >&2
       exit 2
